@@ -30,7 +30,7 @@ class ZoneProcessor(Addon):
         self._zones = addon_config.get("zones")
         self._iou_thresh = addon_config.get("iou_thresh")
         self._class_names = ['Person']
-        self._class_ids = model_config.get("person_class_id")
+        self._class_ids = model_config.get("filter_class_ids", [])
         self._DNC_id = 500
 
         assert len(self._zones) > 0 or len(self._remove_areas) > 0, \
@@ -172,7 +172,7 @@ class ZoneProcessor(Addon):
 
         for i, zone_id in enumerate(box_zones):
             if zone_id == self._DNC_id:
-                idx = self._class_ids.index(int(inference.classes[i]))
+                idx = self._class_ids.index(int(inference.classes[i][0]))
                 class_name = self._class_names[idx]
                 rest_zone_dict[class_name] += 1
 
