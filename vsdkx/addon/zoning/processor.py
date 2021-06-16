@@ -26,7 +26,7 @@ class ZoneProcessor(Addon):
         """
         super().__init__(addon_config, model_settings, model_config,
                          drawing_config)
-        self._remove_areas = addon_config.get("remove_areas")
+        self._remove_areas = addon_config.get("remove_areas", [])
         self._zones = addon_config.get("zones")
         self._iou_thresh = addon_config.get("iou_thresh")
         self._class_names = ['Person']
