@@ -13,7 +13,8 @@ class ZoneProcessor(Addon):
         2. Reporting the amount of detected events per zone
     """
 
-    def __init__(self, addon_config: dict):
+    def __init__(self, addon_config: dict, model_settings: dict,
+                 model_config: dict, drawing_config: dict):
         """
         Args:
             remove_areas (list): List with areas to remove
@@ -23,13 +24,13 @@ class ZoneProcessor(Addon):
             class_names (list): List with class names
             class_ids (array): Array with class IDs
         """
-
-        super().__init__(addon_config)
+        super().__init__(addon_config, model_settings, model_config,
+                         drawing_config)
         self._remove_areas = addon_config.get("remove_areas")
         self._zones = addon_config.get("zones")
-        self._iou_thresh = addon_config.get("iou_thresh")
-        self._class_names = addon_config.get("class_names")
-        self._class_ids = addon_config.get("class_ids")
+        self._iou_thresh = model_settings.get("iou_thresh")
+        self._class_names = ['Person']
+        self._class_ids = model_config.get("person_class_id")
         self._DNC_id = 500
 
         assert len(self._zones) > 0 or len(self._remove_areas) > 0, \
