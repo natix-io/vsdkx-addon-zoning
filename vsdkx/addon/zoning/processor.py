@@ -28,7 +28,7 @@ class ZoneProcessor(Addon):
                          drawing_config)
         self._remove_areas = addon_config.get("remove_areas")
         self._zones = addon_config.get("zones")
-        self._iou_thresh = model_settings.get("iou_thresh")
+        self._iou_thresh = addon_config.get("iou_thresh")
         self._class_names = ['Person']
         self._class_ids = model_config.get("person_class_id")
         self._DNC_id = 500
@@ -177,7 +177,7 @@ class ZoneProcessor(Addon):
                 rest_zone_dict[class_name] += 1
 
         zone_count[rest_zone_str] = rest_zone_dict
-        inference.extra["zone_count"] = zone_count
+        inference.extra["zoning"] = zone_count
         return inference
 
     def _get_trackable_object(self, trackable_objects, bounding_box):
