@@ -152,7 +152,7 @@ class ZoneProcessor(Addon):
                     # the object's counter (by class name) in the dictionary
                     if iou >= self._iou_thresh[i]:
                         box_zones[j] = i
-                        idx = self._class_ids.index(int(inference.classes[j]))
+                        idx = self._class_ids.index(int(inference.classes[j][0]))
                         class_name = self._class_names[idx]
                         obj_class_dict[class_name] += 1
                     else:
