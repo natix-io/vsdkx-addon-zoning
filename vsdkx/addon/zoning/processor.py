@@ -76,12 +76,13 @@ class ZoneProcessor(Addon):
 
         return obj_class_dict_sample
 
-    def post_process(self, inference: Inference) -> Inference:
+    def post_process(self, frame: ndarray, inference: Inference) -> Inference:
         """
         Counts the amount of predicted events per zone
 
         Args:
-             inference (Inference): the result of the ai
+            frame (ndarray): the frame data
+            inference (Inference): the result of the ai
 
         Returns:
             zone_count (dict): Dictionary with events counts per zone
@@ -152,7 +153,8 @@ class ZoneProcessor(Addon):
                     # the object's counter (by class name) in the dictionary
                     if iou >= self._iou_thresh[i]:
                         box_zones[j] = i
-                        idx = self._class_ids.index(int(inference.classes[j][0]))
+                        idx = self._class_ids.index(
+                            int(inference.classes[j][0]))
                         class_name = self._class_names[idx]
                         obj_class_dict[class_name] += 1
                     else:
