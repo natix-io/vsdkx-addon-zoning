@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from shapely.geometry import Polygon, Point
-from vsdkx.core.interfaces import Addon
+from vsdkx.core.interfaces import Addon, AddonObject
 from numpy import ndarray
 from vsdkx.core.structs import Inference
 
@@ -43,25 +43,29 @@ class ZoneProcessor(Addon):
             "a IOU threshold 'zone_iou_thresh' for every pre-configured " \
             "zone in the system.yaml configuration."
 
-    def pre_process(self, image: ndarray) -> ndarray:
+    def pre_process(self, addon_object: AddonObject) -> AddonObject:
         """
         Blurs the selected zones from the image
 
         Args:
-            image (np.array): Image array
+            addon_object (AddonObject): addon object containing information
+            about frame and/or other addons shared data
 
         Returns:
-            image (np.array): Transformed image
+            (AddonObject): addon object has updated information for frame,
+            inference, result and/or shared information:
         """
         for i in range(len(self._remove_areas)):
             xmin = self._remove_areas[i][0]
             ymin = self._remove_areas[i][1]
             xmax = self._remove_areas[i][2]
             ymax = self._remove_areas[i][3]
-            image[ymin:ymax, xmin:xmax] = cv2.blur(image[ymin:ymax,
-                                                   xmin:xmax],
-                                                   (30, 30))
-        return image
+            addon_object.frame[ymin:ymax, xmin:xmax] = cv2.blur(
+                addon_object.frame[ymin:ymax, xmin:xmax],
+                (30, 30)
+            )
+
+        return addon_object
 
     def _create_dict(self):
         """
@@ -76,17 +80,20 @@ class ZoneProcessor(Addon):
 
         return obj_class_dict_sample
 
-    def post_process(self, frame: ndarray, inference: Inference) -> Inference:
+    def post_process(self, addon_object: AddonObject) -> AddonObject:
         """
         Counts the amount of predicted events per zone
 
         Args:
-            frame (ndarray): the frame data
-            inference (Inference): the result of the ai
+            addon_object (AddonObject): addon object containing information
+            about inference, frame, other addons shared data
 
         Returns:
-            zone_count (dict): Dictionary with events counts per zone
+            (AddonObject): addon object has updated information for inference
+            result and/or shared information
         """
+        inference = addon_object.inference
+
         rest_zone_str = 'rest'
 
         zone_count = {}
@@ -109,7 +116,8 @@ class ZoneProcessor(Addon):
             # class that entered/exited a zone
             enter_count = self._create_dict()
             exit_count = self._create_dict()
-            trackable_objects = inference.extra.get("trackable_object", {})
+            trackable_objects = addon_object.shared.get("trackable_objects",
+                                                        {})
             # Iterate through all boxes
             for j, (poly_box, bbox) in enumerate(
                     zip(boxes_poly, inference.boxes)):
@@ -180,7 +188,9 @@ class ZoneProcessor(Addon):
 
         zone_count[rest_zone_str] = rest_zone_dict
         inference.extra["zoning"] = zone_count
-        return inference
+        addon_object.inference = inference
+
+        return addon_object
 
     def _get_trackable_object(self, trackable_objects, bounding_box):
         """
