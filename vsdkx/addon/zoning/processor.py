@@ -2,8 +2,6 @@ import cv2
 import numpy as np
 from shapely.geometry import Polygon, Point
 from vsdkx.core.interfaces import Addon, AddonObject
-from numpy import ndarray
-from vsdkx.core.structs import Inference
 
 
 class ZoneProcessor(Addon):
@@ -15,20 +13,10 @@ class ZoneProcessor(Addon):
 
     def __init__(self, addon_config: dict, model_settings: dict,
                  model_config: dict, drawing_config: dict):
-        """
-        Args:
-            remove_areas (list): List with areas to remove
-            zones (list): List with configured zones of
-            [xmin, ymin, xmax, ymax] format
-            iou_thresh (float): IOU threshold
-            class_names (list): List with class names
-            class_ids (array): Array with class IDs
-        """
         super().__init__(addon_config, model_settings, model_config,
                          drawing_config)
         self._remove_areas = addon_config.get("remove_areas", [])
         self._zones = addon_config.get("zones")
-        self._iou_thresh = addon_config.get("iou_thresh")
         self._class_names = ['Person']
         self._class_ids = model_config.get("filter_class_ids", [])
         self._DNC_id = 500
@@ -37,11 +25,6 @@ class ZoneProcessor(Addon):
             "Incorrect ZoneProcessor set up. Please make sure to " \
             "define the coordinates for zones and remove_areas in the " \
             "system.yaml configuration."
-
-        assert len(self._zones) == len(self._iou_thresh), \
-            "Incorrect Zone configuration. Please make sure to define " \
-            "a IOU threshold 'zone_iou_thresh' for every pre-configured " \
-            "zone in the system.yaml configuration."
 
     def pre_process(self, addon_object: AddonObject) -> AddonObject:
         """
@@ -128,6 +111,8 @@ class ZoneProcessor(Addon):
                     # Ensures that we have at least the centroids
                     # of the two last frames
                     if len(to.centroids) > 2:
+                        # Get the object centroids from the previous
+                        # and current frames
                         prev_centroid = to.centroids[-2]
                         current_centroid = to.centroids[-1]
                         prev_centroid = Point(prev_centroid[0],
@@ -137,39 +122,27 @@ class ZoneProcessor(Addon):
                         prev_in = prev_centroid.within(zone)
                         current_in = current_centroid.within(zone)
 
+                        # Get class idx and class name
+                        idx = self._class_ids.index(
+                            int(addon_object.inference.classes[j])
+                        )
+                        class_name = self._class_names[idx]
+
                         if not prev_in and current_in:
-                            # Update the class count in tracker
-                            idx = self._class_ids.index(
-                                int(inference.classes[j]))
-                            class_name = self._class_names[idx]
+                            # Update the class count in enter_count
+                            # (Object has entered the zone)
+
                             obj_class_dict[class_name] += 1
                             enter_count[class_name] += 1
                         elif prev_in and not current_in:
-                            # Update the class count in tracker
-                            idx = self._class_ids.index(
-                                int(inference.classes[j]))
-                            class_name = self._class_names[idx]
-                            obj_class_dict[class_name] -= 1
                             exit_count[class_name] += 1
 
-                # Process the boxes that have not been assigned to a zone yet
-                if box_zones[j] == 0 or box_zones[j] == self._DNC_id:
-                    # Get the IoU
-                    iou = self._get_iou(zone, poly_box)
-                    # If the IoU is higher and equal than the IoU threshold
-                    # register the box to the current zone ID and increase
-                    # the object's counter (by class name) in the dictionary
-                    if iou >= self._iou_thresh[i]:
-                        box_zones[j] = i
-                        idx = self._class_ids.index(
-                            int(inference.classes[j][0]))
-                        class_name = self._class_names[idx]
-                        obj_class_dict[class_name] += 1
-                    else:
-                        # Otherwise, assign the box to the DNC zone
-                        box_zones[j] = self._DNC_id  # don't care zone
-                else:
-                    print(f'Box assigned to zone {box_zones[j]}, moving on..')
+                        elif prev_in and current_in:
+                            # Object exists in the zone
+                            obj_class_dict[class_name] += 1
+                        else:
+                            # Otherwise, assign the box to the DNC zone
+                            box_zones[j] = self._DNC_id  # don't care zone
 
             # Assign the object class that entered/exited the zone
             obj_class_dict.update({'objects_entered': enter_count})
@@ -249,32 +222,3 @@ class ZoneProcessor(Addon):
             polygons.append(polygon)
 
         return polygons
-
-    def _get_iou(self, zone, box):
-        """
-        Calculates the IOU between two objects
-
-        Args:
-            zone (Polygon): Zone Polygon
-            box (Polygon): Box Polygon
-
-        Returns:
-            iou (float): IOU of the two objects
-        """
-
-        # Normally the IoU formula is calculated by:
-        # I = intersection area / zone area + box area - intersection area
-        # However, when calculating the IoU between two boxes where one of them
-        # is larger by a greater scale, the IoU results to a very low score.
-        # The same problem was observed when comparing small object bounding
-        # boxes intersecting with a large box (zone). As a workaround,
-        # we modified the IoU formula to only consider the intersection
-        # between the zone and the box, with respect to the box area, which
-        # results to a normal IoU score.
-
-        polygon_intersection = zone.intersection(box).area
-        polygon_union = box.union(box).area
-        # polygon_union = box.union(zone).area # Original formula
-        iou = polygon_intersection / polygon_union
-
-        return iou
