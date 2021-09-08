@@ -1,9 +1,7 @@
 import cv2
 import numpy as np
 from shapely.geometry import Polygon, Point
-from vsdkx.core.interfaces import Addon
-from numpy import ndarray
-from vsdkx.core.structs import Inference
+from vsdkx.core.interfaces import Addon, AddonObject
 
 
 class ZoneProcessor(Addon):
@@ -15,20 +13,10 @@ class ZoneProcessor(Addon):
 
     def __init__(self, addon_config: dict, model_settings: dict,
                  model_config: dict, drawing_config: dict):
-        """
-        Args:
-            remove_areas (list): List with areas to remove
-            zones (list): List with configured zones of
-            [xmin, ymin, xmax, ymax] format
-            iou_thresh (float): IOU threshold
-            class_names (list): List with class names
-            class_ids (array): Array with class IDs
-        """
         super().__init__(addon_config, model_settings, model_config,
                          drawing_config)
         self._remove_areas = addon_config.get("remove_areas", [])
         self._zones = addon_config.get("zones")
-        self._iou_thresh = addon_config.get("iou_thresh")
         self._class_names = ['Person']
         self._class_ids = model_config.get("filter_class_ids", [])
         self._DNC_id = 500
@@ -38,30 +26,29 @@ class ZoneProcessor(Addon):
             "define the coordinates for zones and remove_areas in the " \
             "system.yaml configuration."
 
-        assert len(self._zones) == len(self._iou_thresh), \
-            "Incorrect Zone configuration. Please make sure to define " \
-            "a IOU threshold 'zone_iou_thresh' for every pre-configured " \
-            "zone in the system.yaml configuration."
-
-    def pre_process(self, image: ndarray) -> ndarray:
+    def pre_process(self, addon_object: AddonObject) -> AddonObject:
         """
         Blurs the selected zones from the image
 
         Args:
-            image (np.array): Image array
+            addon_object (AddonObject): addon object containing information
+            about frame and/or other addons shared data
 
         Returns:
-            image (np.array): Transformed image
+            (AddonObject): addon object has updated information for frame,
+            inference, result and/or shared information:
         """
         for i in range(len(self._remove_areas)):
             xmin = self._remove_areas[i][0]
             ymin = self._remove_areas[i][1]
             xmax = self._remove_areas[i][2]
             ymax = self._remove_areas[i][3]
-            image[ymin:ymax, xmin:xmax] = cv2.blur(image[ymin:ymax,
-                                                   xmin:xmax],
-                                                   (30, 30))
-        return image
+            addon_object.frame[ymin:ymax, xmin:xmax] = cv2.blur(
+                addon_object.frame[ymin:ymax, xmin:xmax],
+                (30, 30)
+            )
+
+        return addon_object
 
     def _create_dict(self):
         """
@@ -76,17 +63,20 @@ class ZoneProcessor(Addon):
 
         return obj_class_dict_sample
 
-    def post_process(self, frame: ndarray, inference: Inference) -> Inference:
+    def post_process(self, addon_object: AddonObject) -> AddonObject:
         """
         Counts the amount of predicted events per zone
 
         Args:
-            frame (ndarray): the frame data
-            inference (Inference): the result of the ai
+            addon_object (AddonObject): addon object containing information
+            about inference, frame, other addons shared data
 
         Returns:
-            zone_count (dict): Dictionary with events counts per zone
+            (AddonObject): addon object has updated information for inference
+            result and/or shared information
         """
+        inference = addon_object.inference
+
         rest_zone_str = 'rest'
 
         zone_count = {}
@@ -109,7 +99,8 @@ class ZoneProcessor(Addon):
             # class that entered/exited a zone
             enter_count = self._create_dict()
             exit_count = self._create_dict()
-            trackable_objects = inference.extra.get("trackable_object", {})
+            trackable_objects = addon_object.shared.get("trackable_objects",
+                                                        {})
             # Iterate through all boxes
             for j, (poly_box, bbox) in enumerate(
                     zip(boxes_poly, inference.boxes)):
@@ -120,6 +111,8 @@ class ZoneProcessor(Addon):
                     # Ensures that we have at least the centroids
                     # of the two last frames
                     if len(to.centroids) > 2:
+                        # Get the object centroids from the previous
+                        # and current frames
                         prev_centroid = to.centroids[-2]
                         current_centroid = to.centroids[-1]
                         prev_centroid = Point(prev_centroid[0],
@@ -129,39 +122,27 @@ class ZoneProcessor(Addon):
                         prev_in = prev_centroid.within(zone)
                         current_in = current_centroid.within(zone)
 
+                        # Get class idx and class name
+                        idx = self._class_ids.index(
+                            int(addon_object.inference.classes[j])
+                        )
+                        class_name = self._class_names[idx]
+
                         if not prev_in and current_in:
-                            # Update the class count in tracker
-                            idx = self._class_ids.index(
-                                int(inference.classes[j]))
-                            class_name = self._class_names[idx]
+                            # Update the class count in enter_count
+                            # (Object has entered the zone)
+
                             obj_class_dict[class_name] += 1
                             enter_count[class_name] += 1
                         elif prev_in and not current_in:
-                            # Update the class count in tracker
-                            idx = self._class_ids.index(
-                                int(inference.classes[j]))
-                            class_name = self._class_names[idx]
-                            obj_class_dict[class_name] -= 1
                             exit_count[class_name] += 1
 
-                # Process the boxes that have not been assigned to a zone yet
-                if box_zones[j] == 0 or box_zones[j] == self._DNC_id:
-                    # Get the IoU
-                    iou = self._get_iou(zone, poly_box)
-                    # If the IoU is higher and equal than the IoU threshold
-                    # register the box to the current zone ID and increase
-                    # the object's counter (by class name) in the dictionary
-                    if iou >= self._iou_thresh[i]:
-                        box_zones[j] = i
-                        idx = self._class_ids.index(
-                            int(inference.classes[j][0]))
-                        class_name = self._class_names[idx]
-                        obj_class_dict[class_name] += 1
-                    else:
-                        # Otherwise, assign the box to the DNC zone
-                        box_zones[j] = self._DNC_id  # don't care zone
-                else:
-                    print(f'Box assigned to zone {box_zones[j]}, moving on..')
+                        elif prev_in and current_in:
+                            # Object exists in the zone
+                            obj_class_dict[class_name] += 1
+                        else:
+                            # Otherwise, assign the box to the DNC zone
+                            box_zones[j] = self._DNC_id  # don't care zone
 
             # Assign the object class that entered/exited the zone
             obj_class_dict.update({'objects_entered': enter_count})
@@ -180,7 +161,9 @@ class ZoneProcessor(Addon):
 
         zone_count[rest_zone_str] = rest_zone_dict
         inference.extra["zoning"] = zone_count
-        return inference
+        addon_object.inference = inference
+
+        return addon_object
 
     def _get_trackable_object(self, trackable_objects, bounding_box):
         """
@@ -239,32 +222,3 @@ class ZoneProcessor(Addon):
             polygons.append(polygon)
 
         return polygons
-
-    def _get_iou(self, zone, box):
-        """
-        Calculates the IOU between two objects
-
-        Args:
-            zone (Polygon): Zone Polygon
-            box (Polygon): Box Polygon
-
-        Returns:
-            iou (float): IOU of the two objects
-        """
-
-        # Normally the IoU formula is calculated by:
-        # I = intersection area / zone area + box area - intersection area
-        # However, when calculating the IoU between two boxes where one of them
-        # is larger by a greater scale, the IoU results to a very low score.
-        # The same problem was observed when comparing small object bounding
-        # boxes intersecting with a large box (zone). As a workaround,
-        # we modified the IoU formula to only consider the intersection
-        # between the zone and the box, with respect to the box area, which
-        # results to a normal IoU score.
-
-        polygon_intersection = zone.intersection(box).area
-        polygon_union = box.union(box).area
-        # polygon_union = box.union(zone).area # Original formula
-        iou = polygon_intersection / polygon_union
-
-        return iou
