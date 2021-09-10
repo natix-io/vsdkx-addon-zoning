@@ -14,7 +14,7 @@ setup(
         'vsdkx-core',
         'opencv-python~=4.2.0.34',
         'shapely>=1.7.1',
-        'numpy==1.18.5',
+        'numpy>=1.18.5',
     ],
     version='1.0',
 )
