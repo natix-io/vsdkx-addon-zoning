@@ -38,14 +38,20 @@ class ZoneProcessor(Addon):
             (AddonObject): addon object has updated information for frame,
             inference, result and/or shared information:
         """
-        for i in range(len(self._remove_areas)):
-            xmin = self._remove_areas[i][0]
-            ymin = self._remove_areas[i][1]
-            xmax = self._remove_areas[i][2]
-            ymax = self._remove_areas[i][3]
-            addon_object.frame[ymin:ymax, xmin:xmax] = cv2.blur(
-                addon_object.frame[ymin:ymax, xmin:xmax],
-                (30, 30)
+        for area in self._remove_areas:
+            roi_corners = np.array(
+                [area],
+                dtype=np.int32)
+            blurred_image = cv2.GaussianBlur(addon_object.frame, (53, 53), 30)
+            mask = np.zeros(addon_object.frame.shape, dtype=np.uint8)
+            channel_count = addon_object.frame.shape[2]
+            ignore_mask_color = (255,) * channel_count
+            cv2.fillPoly(mask, roi_corners, ignore_mask_color)
+            mask_inverse = np.ones(mask.shape).astype(np.uint8) * 255 - mask
+            addon_object.frame = cv2.bitwise_and(
+                blurred_image, mask
+            ) + cv2.bitwise_and(
+                addon_object.frame, mask_inverse
             )
 
         return addon_object
