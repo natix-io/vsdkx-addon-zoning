@@ -20,6 +20,8 @@ class ZoneProcessor(Addon):
         self._class_names = ['Person']
         self._class_ids = model_config.get("filter_class_ids", [])
         self._DNC_id = 500
+        self._blur_kernel = (53, 53)
+        self._cv_sigma_x = 30
 
         assert len(self._zones) > 0 or len(self._remove_areas) > 0, \
             "Incorrect ZoneProcessor set up. Please make sure to " \
@@ -42,7 +44,7 @@ class ZoneProcessor(Addon):
             roi_corners = np.array(
                 [area],
                 dtype=np.int32)
-            blurred_image = cv2.GaussianBlur(addon_object.frame, (53, 53), 30)
+            blurred_image = cv2.GaussianBlur(addon_object.frame, self._blur_kernel, self._cv_sigma_x)
             mask = np.zeros(addon_object.frame.shape, dtype=np.uint8)
             channel_count = addon_object.frame.shape[2]
             ignore_mask_color = (255,) * channel_count
