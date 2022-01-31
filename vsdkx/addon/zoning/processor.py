@@ -170,7 +170,7 @@ class ZoneProcessor(Addon):
         zone_count[rest_zone_str] = rest_zone_dict
         inference.extra["zoning"] = zone_count
         addon_object.inference = inference
-        print(f'Zoning processor results {inference.extra["zoning"]}')
+
         return addon_object
 
     def _get_trackable_object(self, trackable_objects, bounding_box):
