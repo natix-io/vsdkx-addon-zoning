@@ -17,7 +17,7 @@ class ZoneProcessor(Addon):
                          drawing_config)
         self._remove_areas = addon_config.get("remove_areas", [])
         self._zones = addon_config.get("zones")
-        self._class_names = ['Person']
+        self._class_names = addon_config.get('class_names', ['Person'])
         self._class_ids = model_config.get("filter_class_ids", [])
         self._DNC_id = 500
         self._blur_kernel = (53, 53)
