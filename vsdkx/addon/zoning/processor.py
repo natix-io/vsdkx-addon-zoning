@@ -67,7 +67,7 @@ class ZoneProcessor(Addon):
         """
         obj_class_dict_sample = {}
         for obj_class in self._class_names:
-            obj_class_dict_sample[obj_class] = 0
+            obj_class_dict_sample[obj_class] = []
 
         return obj_class_dict_sample
 
@@ -86,6 +86,7 @@ class ZoneProcessor(Addon):
         inference = addon_object.inference
 
         rest_zone_str = 'rest'
+        rest_zone_dict = self._create_dict()
 
         zone_count = {}
 
@@ -113,44 +114,48 @@ class ZoneProcessor(Addon):
             for j, (poly_box, bbox) in enumerate(
                     zip(boxes_poly, inference.boxes)):
                 to = self._get_trackable_object(trackable_objects, bbox)
+
                 # Checking if a trackable object was found for that
-                # bounding box
-                if type(to) is not type(None):
-                    # Ensures that we have at least the centroids
-                    # of the two last frames
-                    if len(to.centroids) > 2:
-                        # Get the object centroids from the previous
-                        # and current frames
-                        prev_centroid = to.centroids[-2]
-                        current_centroid = to.centroids[-1]
-                        prev_centroid = Point(prev_centroid[0],
-                                              prev_centroid[1])
-                        current_centroid = Point(current_centroid[0],
-                                                 current_centroid[1])
-                        prev_in = prev_centroid.within(zone)
-                        current_in = current_centroid.within(zone)
+                # bounding box, and we have at least the centroids of
+                # the two last frames
+                if type(to) is not type(None) \
+                        and len(to.centroids) > 2:
+                    # Get the object centroids from the previous
+                    # and current frames
+                    prev_centroid = to.centroids[-2]
+                    current_centroid = to.centroids[-1]
+                    prev_centroid = Point(prev_centroid[0],
+                                          prev_centroid[1])
+                    current_centroid = Point(current_centroid[0],
+                                             current_centroid[1])
+                    prev_in = prev_centroid.within(zone)
+                    current_in = current_centroid.within(zone)
 
-                        # Get class idx and class name
-                        idx = self._class_ids.index(
-                            int(addon_object.inference.classes[j])
-                        )
-                        class_name = self._class_names[idx]
+                    # Get class idx and class name
+                    idx = self._class_ids.index(
+                        int(addon_object.inference.classes[j])
+                    )
+                    class_name = self._class_names[idx]
 
-                        if not prev_in and current_in:
-                            # Update the class count in enter_count
-                            # (Object has entered the zone)
+                    if not prev_in and current_in:
+                        # Update the class count in enter_count
+                        # (Object has entered the zone)
 
-                            obj_class_dict[class_name] += 1
-                            enter_count[class_name] += 1
-                        elif prev_in and not current_in:
-                            exit_count[class_name] += 1
+                        obj_class_dict[class_name].append(to.object_id)
+                        enter_count[class_name].append(to.object_id)
+                    elif prev_in and not current_in:
+                        exit_count[class_name].append(to.object_id)
 
-                        elif prev_in and current_in:
-                            # Object exists in the zone
-                            obj_class_dict[class_name] += 1
-                        else:
-                            # Otherwise, assign the box to the DNC zone
-                            box_zones[j] = self._DNC_id  # don't care zone
+                    elif prev_in and current_in:
+                        # Object exists in the zone
+                        obj_class_dict[class_name].append(to.object_id)
+                    else:
+                        # Otherwise, assign the box to the rest zone
+                        # box_zones[j] = self._DNC_id  # don't care zone
+
+                        # idx = self._class_ids.index(int(inference.classes[i][0]))
+                        # class_name = self._class_names[idx]
+                        rest_zone_dict[class_name].append(to.object_id)
 
             # Assign the object class that entered/exited the zone
             obj_class_dict.update({'objects_entered': enter_count})
@@ -158,14 +163,14 @@ class ZoneProcessor(Addon):
 
             zone_count[f'zone_{i}'] = obj_class_dict
 
-        # Get the total count of objects in the DNC zone
-        rest_zone_dict = self._create_dict()
-
-        for i, zone_id in enumerate(box_zones):
-            if zone_id == self._DNC_id:
-                idx = self._class_ids.index(int(inference.classes[i][0]))
-                class_name = self._class_names[idx]
-                rest_zone_dict[class_name] += 1
+        # # Get the total count of objects in the DNC zone
+        # rest_zone_dict = self._create_dict()
+        #
+        # for i, zone_id in enumerate(box_zones):
+        #     if zone_id == self._DNC_id:
+        #         idx = self._class_ids.index(int(inference.classes[i][0]))
+        #         class_name = self._class_names[idx]
+        #         rest_zone_dict[class_name] += 1
 
         zone_count[rest_zone_str] = rest_zone_dict
         inference.extra["zoning"] = zone_count
