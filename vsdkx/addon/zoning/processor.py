@@ -183,6 +183,16 @@ class ZoneProcessor(Addon):
     @staticmethod
     def _count_object_ids(zone_dict: dict) -> dict:
         """
+        Recursive function iterates over zones dictionary and adds count number
+        for every list object value or calls itself for every dictionary value.
+
+        Args:
+            zone_dict (dict): zones dictionary with object class name to object
+            ids mapping.
+
+        Returns:
+            (dict): updated zones dictionary with object class name to object
+            count mapping values added.
         """
         zone_dict_copy = zone_dict.copy()
 
