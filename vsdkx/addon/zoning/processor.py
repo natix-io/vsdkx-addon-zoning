@@ -190,7 +190,8 @@ class ZoneProcessor(Addon):
             if isinstance(value, list):
                 zone_dict_copy[key + '_count'] = len(value)
             elif isinstance(value, dict):
-                zone_dict_copy[key] = ZoneProcessor._count_object_ids(value)
+                zone_dict_copy[key + '_ids'] = \
+                    ZoneProcessor._count_object_ids(value)
 
         return zone_dict_copy
 
