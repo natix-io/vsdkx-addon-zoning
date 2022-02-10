@@ -173,10 +173,26 @@ class ZoneProcessor(Addon):
         #         rest_zone_dict[class_name] += 1
 
         zone_count[rest_zone_str] = rest_zone_dict
+        zone_count = ZoneProcessor._count_object_ids(zone_count)
+
         inference.extra["zoning"] = zone_count
         addon_object.inference = inference
 
         return addon_object
+
+    @staticmethod
+    def _count_object_ids(zone_dict: dict) -> dict:
+        """
+        """
+        zone_dict_copy = zone_dict.copy()
+
+        for key, value in zone_dict.items():
+            if isinstance(value, list):
+                zone_dict_copy[key + '_count'] = len(value)
+            elif isinstance(value, dict):
+                zone_dict_copy[key] = ZoneProcessor._count_object_ids(value)
+
+        return zone_dict_copy
 
     def _get_trackable_object(self, trackable_objects, bounding_box):
         """
