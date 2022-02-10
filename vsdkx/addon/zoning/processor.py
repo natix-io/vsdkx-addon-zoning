@@ -19,7 +19,6 @@ class ZoneProcessor(Addon):
         self._zones = addon_config.get("zones")
         self._class_names = addon_config.get('class_names', ['Person'])
         self._class_ids = model_config.get("filter_class_ids", [])
-        self._DNC_id = 500
         self._blur_kernel = (53, 53)
         self._cv_sigma_x = 30
 
@@ -93,8 +92,8 @@ class ZoneProcessor(Addon):
         # Init box_zone array to register the zone ID each box is assigned to
         box_zones = np.zeros(len(inference.boxes))
         # Calculate all box areas once
-        boxes_poly = self._bounding_box_to_polygon(inference.boxes)
-        zones_poly = self._zones_to_polygons(self._zones)
+        boxes_poly = ZoneProcessor._bounding_box_to_polygon(inference.boxes)
+        zones_poly = ZoneProcessor._zones_to_polygons(self._zones)
 
         # Iterate through all zones
         for i, zone in enumerate(zones_poly):
@@ -112,8 +111,8 @@ class ZoneProcessor(Addon):
                                                         {})
             # Iterate through all boxes
             for j, (poly_box, bbox) in enumerate(
-                    zip(boxes_poly, inference.boxes)):
-                to = self._get_trackable_object(trackable_objects, bbox)
+                    zip(boxes_poly, inference.boxes)):  
+                to = ZoneProcessor._get_trackable_object(trackable_objects, bbox)
 
                 # Checking if a trackable object was found for that
                 # bounding box, and we have at least the centroids of
@@ -151,10 +150,6 @@ class ZoneProcessor(Addon):
                         obj_class_dict[class_name].append(to.object_id)
                     else:
                         # Otherwise, assign the box to the rest zone
-                        # box_zones[j] = self._DNC_id  # don't care zone
-
-                        # idx = self._class_ids.index(int(inference.classes[i][0]))
-                        # class_name = self._class_names[idx]
                         rest_zone_dict[class_name].append(to.object_id)
 
             # Assign the object class that entered/exited the zone
@@ -162,15 +157,6 @@ class ZoneProcessor(Addon):
             obj_class_dict.update({'objects_exited': exit_count})
 
             zone_count[f'zone_{i}'] = obj_class_dict
-
-        # # Get the total count of objects in the DNC zone
-        # rest_zone_dict = self._create_dict()
-        #
-        # for i, zone_id in enumerate(box_zones):
-        #     if zone_id == self._DNC_id:
-        #         idx = self._class_ids.index(int(inference.classes[i][0]))
-        #         class_name = self._class_names[idx]
-        #         rest_zone_dict[class_name] += 1
 
         zone_count[rest_zone_str] = rest_zone_dict
         zone_count = ZoneProcessor._count_object_ids(zone_count)
@@ -205,7 +191,8 @@ class ZoneProcessor(Addon):
 
         return zone_dict_copy
 
-    def _get_trackable_object(self, trackable_objects, bounding_box):
+    @staticmethod
+    def _get_trackable_object(trackable_objects, bounding_box):
         """
         Filters trackable objects by their bounding boxes
 
@@ -224,7 +211,8 @@ class ZoneProcessor(Addon):
                 trackable_object = to_obj
         return trackable_object
 
-    def _bounding_box_to_polygon(self, boxes):
+    @staticmethod
+    def _bounding_box_to_polygon(boxes):
         """
         Converts bounding boxes from xmin, ymin, xmax,ymax, to a polygon object
 
@@ -245,7 +233,8 @@ class ZoneProcessor(Addon):
 
         return polygons
 
-    def _zones_to_polygons(self, zones):
+    @staticmethod
+    def _zones_to_polygons(zones):
         """
         Converts a list of polygon zone points into a list of polygon objects
 
