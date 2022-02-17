@@ -67,6 +67,7 @@ class ZoneProcessor(Addon):
         obj_class_dict_sample = {}
         for obj_class in self._class_names:
             obj_class_dict_sample[obj_class] = []
+            obj_class_dict_sample[obj_class + '_count'] = 0
 
         return obj_class_dict_sample
 
@@ -111,7 +112,7 @@ class ZoneProcessor(Addon):
                                                         {})
             # Iterate through all boxes
             for j, (poly_box, bbox) in enumerate(
-                    zip(boxes_poly, inference.boxes)):  
+                    zip(boxes_poly, inference.boxes)):
                 to = ZoneProcessor._get_trackable_object(trackable_objects, bbox)
 
                 # Checking if a trackable object was found for that
@@ -142,15 +143,23 @@ class ZoneProcessor(Addon):
 
                         obj_class_dict[class_name].append(to.object_id)
                         enter_count[class_name].append(to.object_id)
+                        enter_count[class_name + '_count'] = \
+                            len(enter_count[class_name])
                     elif prev_in and not current_in:
                         exit_count[class_name].append(to.object_id)
+                        exit_count[class_name + '_count'] = \
+                            len(exit_count[class_name])
 
                     elif prev_in and current_in:
                         # Object exists in the zone
                         obj_class_dict[class_name].append(to.object_id)
+                        obj_class_dict[class_name + '_count'] = \
+                            len(obj_class_dict[class_name])
                     else:
                         # Otherwise, assign the box to the rest zone
                         rest_zone_dict[class_name].append(to.object_id)
+                        rest_zone_dict[class_name + '_count'] = \
+                            len(rest_zone_dict[class_name])
 
             # Assign the object class that entered/exited the zone
             obj_class_dict.update({'objects_entered': enter_count})
@@ -159,37 +168,11 @@ class ZoneProcessor(Addon):
             zone_count[f'zone_{i}'] = obj_class_dict
 
         zone_count[rest_zone_str] = rest_zone_dict
-        zone_count = ZoneProcessor._count_object_ids(zone_count)
 
         inference.extra["zoning"] = zone_count
         addon_object.inference = inference
 
         return addon_object
-
-    @staticmethod
-    def _count_object_ids(zone_dict: dict) -> dict:
-        """
-        Recursive function iterates over zones dictionary and adds count number
-        for every list object value or calls itself for every dictionary value.
-
-        Args:
-            zone_dict (dict): zones dictionary with object class name to object
-            ids mapping.
-
-        Returns:
-            (dict): updated zones dictionary with object class name to object
-            count mapping values added.
-        """
-        zone_dict_copy = zone_dict.copy()
-
-        for key, value in zone_dict.items():
-            if isinstance(value, list):
-                zone_dict_copy[key + '_count'] = len(value)
-            elif isinstance(value, dict):
-                zone_dict_copy[key + '_ids'] = \
-                    ZoneProcessor._count_object_ids(value)
-
-        return zone_dict_copy
 
     @staticmethod
     def _get_trackable_object(trackable_objects, bounding_box):
