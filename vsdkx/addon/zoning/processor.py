@@ -1,7 +1,11 @@
+import logging
 import cv2
 import numpy as np
 from shapely.geometry import Polygon, Point
+
 from vsdkx.core.interfaces import Addon, AddonObject
+
+LOG_TAG = "Zoning Addon"
 
 
 class ZoneProcessor(Addon):
@@ -15,6 +19,8 @@ class ZoneProcessor(Addon):
                  model_config: dict, drawing_config: dict):
         super().__init__(addon_config, model_settings, model_config,
                          drawing_config)
+        self._logger = logging.getLogger(LOG_TAG)
+
         self._remove_areas = addon_config.get("remove_areas", [])
         self._zones = addon_config.get("zones")
         self._class_names = addon_config.get('class_names', ['Person'])
@@ -39,11 +45,15 @@ class ZoneProcessor(Addon):
             (AddonObject): addon object has updated information for frame,
             inference, result and/or shared information:
         """
+        self._logger.debug(f"total {len(self._remove_areas)} areas to blur")
+
         for area in self._remove_areas:
             roi_corners = np.array(
                 [area],
                 dtype=np.int32)
-            blurred_image = cv2.GaussianBlur(addon_object.frame, self._blur_kernel, self._cv_sigma_x)
+            blurred_image = cv2.GaussianBlur(addon_object.frame,
+                                             self._blur_kernel,
+                                             self._cv_sigma_x)
             mask = np.zeros(addon_object.frame.shape, dtype=np.uint8)
             channel_count = addon_object.frame.shape[2]
             ignore_mask_color = (255,) * channel_count
@@ -90,8 +100,6 @@ class ZoneProcessor(Addon):
 
         zone_count = {}
 
-        # Init box_zone array to register the zone ID each box is assigned to
-        box_zones = np.zeros(len(inference.boxes))
         # Calculate all box areas once
         boxes_poly = ZoneProcessor._bounding_box_to_polygon(inference.boxes)
         zones_poly = ZoneProcessor._zones_to_polygons(self._zones)
@@ -113,7 +121,8 @@ class ZoneProcessor(Addon):
             # Iterate through all boxes
             for j, (poly_box, bbox) in enumerate(
                     zip(boxes_poly, inference.boxes)):
-                to = ZoneProcessor._get_trackable_object(trackable_objects, bbox)
+                to = ZoneProcessor._get_trackable_object(trackable_objects,
+                                                         bbox)
 
                 # Checking if a trackable object was found for that
                 # bounding box, and we have at least the centroids of
