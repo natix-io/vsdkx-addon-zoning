@@ -13,7 +13,6 @@ setup(
     install_requires=[
         'vsdkx-core',
         'vsdkx-addon-tracking @ git+https://github.com/natix-io/vsdkx-addon-tracking.git',
-        'opencv-python~=4.2.0.34',
         'shapely>=1.7.1',
         'numpy>=1.18.5',
     ],
